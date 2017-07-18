@@ -1,4 +1,14 @@
 #include "darknet.h"
+#include "image.h"
+
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "sys/socket.h"
+#include "sys/types.h"
+#include "unistd.h"
+#include "errno.h"
+#include "netinet/in.h"
 
 static int coco_ids[] = {1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90};
 
@@ -648,6 +658,186 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     }
 }
 
+int receive_image_from_socket(int socket, char** array) {
+    int recv_size = 0, size = 0, read_size = 0, write_size, stat;
+    char size_buf[50];
+
+    do {
+        stat = read(socket, &size_buf, sizeof(size_buf));
+        if (size_buf[0] == 'S' && size_buf[1] == 'T' && size_buf[2] == 'O' && size_buf[3] == 'P') {
+            printf("GOT STOP MESSAGE!\n");
+            return 0;
+        }
+    } while (stat < 0);
+
+    size = atoi(size_buf);
+
+    char *image_array;
+    image_array = malloc(size);
+    *array = realloc(*array, size);
+    char response[] = "Got it";
+    char* copy_array;
+    copy_array = malloc(size);
+
+    do {
+        stat = write(socket, &response, sizeof(response));
+    } while (stat < 0);
+
+    int k;
+        
+    while (recv_size < size) {
+        do {
+            read_size = read(socket, image_array, size);
+        } while (read_size < 0);
+
+        for (k = recv_size; k < recv_size + read_size; k++){    
+            copy_array[k] = image_array[k - recv_size];
+        }
+
+        recv_size += read_size;
+        //printf("Total received image size: %i\n", recv_size);
+    }
+
+    *array = (char*)memcpy(*array, copy_array, size);
+
+    char completion[] = "Got image.";
+    write(socket, &completion, sizeof(completion));
+
+    //printf("Image successfully received!\n");
+    free(image_array);
+    free(copy_array);
+    return size;
+}
+
+
+void run_server(char *datacfg, char *cfgfile, char *weightfile, float thresh, float hier_thresh) {
+#ifdef OPENCV
+
+    list *options = read_data_cfg(datacfg);
+    char *name_list = option_find_str(options, "names", "data/names.list");
+    char **names = get_labels(name_list);
+    
+    image **alphabet = load_alphabet();
+    network net = parse_network_cfg(cfgfile);
+    if (weightfile) {
+        load_weights(&net, weightfile);
+    }
+
+    set_batch_network(&net, 1);
+    srand(2222222);
+    clock_t time;
+    char buff[256];
+    char *input = buff;
+    int j;
+    float nms = .4;
+    
+    // SERVER IMPLEMENTATION STARTS HERE
+    int PORT = 8007;
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(PORT);
+    server_address.sin_addr.s_addr = INADDR_ANY;
+
+    printf("Created server address!\n");
+
+    if (bind(s, (struct sockaddr*) &server_address, sizeof(server_address)) < 0) {
+        printf("Bind failed! Error!");
+        return;
+    }
+
+    listen(s, 1);
+
+    printf("Waiting for a connection...\n");
+
+    int client_socket = accept(s, NULL, NULL);
+
+    printf("Connection accepted!\n");
+    
+    int count = 1;
+    
+    int size;
+
+    do {
+        char *result_array;
+        result_array = malloc(1);
+        size = receive_image_from_socket(client_socket, &result_array);
+
+        if (size) {
+            CvMat* rawData = cvCreateMat(1, size, CV_8UC1);
+            rawData->data.ptr = result_array;
+            IplImage* iplimage = cvDecodeImage(rawData, CV_LOAD_IMAGE_ANYCOLOR);
+            image im = ipl_to_image(iplimage);
+            cvReleaseMat(&rawData);
+            image sized = letterbox_image(im, net.w, net.h);
+            layer l = net.layers[net.n-1];
+
+            box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
+            float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
+            for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
+
+            float *X = sized.data;
+            time=clock();
+            network_predict(net, X);
+            printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+            float **masks = 0;
+            if (l.coords > 4){
+                masks = calloc(l.w*l.h*l.n, sizeof(float*));
+                for(j = 0; j < l.w*l.h*l.n; ++j) masks[j] = calloc(l.coords-4, sizeof(float *));
+            }
+
+            get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, masks, 0, 0, hier_thresh, 1);
+            if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
+
+            //draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
+            
+            char pred_message[12] = "Predictions";
+            write(client_socket, &pred_message, sizeof(pred_message));
+
+            int u, v;
+            for(u = 0; u < l.w * l.h * l.n; ++u){
+                float xmin = boxes[u].x - boxes[u].w/2;
+                float xmax = boxes[u].x + boxes[u].w/2;
+                float ymin = boxes[u].y - boxes[u].h/2;
+                float ymax = boxes[u].y + boxes[u].h/2;
+
+                if (xmin < 0) xmin = 0;
+                if (ymin < 0) ymin = 0;
+                if (xmax > 1) xmax = 1;
+                if (ymax > 1) ymax = 1;
+
+                for(v = 0; v < l.classes; ++v){
+                    char pred[64];
+
+                    if (probs[u][v]) {
+                        sprintf(pred, "%s %f %f %f %f %f\n", names[v], probs[u][v],
+                                xmin, ymin, xmax, ymax);
+                        //printf(pred);
+                        write(client_socket, &pred, sizeof(pred));
+                    }
+                }
+            }
+
+            char stop_message[8] = "NO MORE";
+            write(client_socket, &stop_message, sizeof(stop_message));
+
+            free_image(im);
+            free_image(sized);
+            free(boxes);
+            free(masks);
+            free_ptrs((void **)probs, l.w*l.h*l.n);
+        }
+
+        free(result_array);
+        count++;
+
+    } while (size);
+    close(client_socket);
+#else
+    printf("COMPILE WITH OPENCV TO RUN SERVER\n");
+#endif
+}
+
 void run_detector(int argc, char **argv)
 {
     char *prefix = find_char_arg(argc, argv, "-prefix", 0);
@@ -699,6 +889,7 @@ void run_detector(int argc, char **argv)
     else if(0==strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "valid2")) validate_detector_flip(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "recall")) validate_detector_recall(cfg, weights);
+    else if(0==strcmp(argv[2], "server")) run_server(datacfg, cfg, weights, thresh, hier_thresh);
     else if(0==strcmp(argv[2], "demo")) {
         list *options = read_data_cfg(datacfg);
         int classes = option_find_int(options, "classes", 20);
