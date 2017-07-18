@@ -703,6 +703,9 @@ int receive_image_from_socket(int socket, char** array) {
     char completion[] = "Got image.";
     write(socket, &completion, sizeof(completion));
 
+    char ok_response[5];
+    read(socket, &ok_response, sizeof(ok_response));
+
     //printf("Image successfully received!\n");
     free(image_array);
     free(copy_array);
