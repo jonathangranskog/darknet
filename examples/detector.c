@@ -732,7 +732,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
     float nms = .4;
     
     // SERVER IMPLEMENTATION STARTS HERE
-    int PORT = 8007;
+    int PORT = 8008;
     int s = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
@@ -820,6 +820,12 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
 
             char stop_message[8] = "NO MORE";
             write(client_socket, &stop_message, sizeof(stop_message));
+
+            /*cvNamedWindow("predictions", CV_WINDOW_NORMAL); 
+            draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+            show_image(im, "predictions");
+            cvWaitKey(0);
+            cvDestroyAllWindows();*/
 
             free_image(im);
             free_image(sized);
