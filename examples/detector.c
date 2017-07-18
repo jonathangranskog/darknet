@@ -710,7 +710,7 @@ int receive_image_from_socket(int socket, char** array) {
 }
 
 
-void run_server(char *datacfg, char *cfgfile, char *weightfile, float thresh, float hier_thresh) {
+void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thresh, float hier_thresh) {
 #ifdef OPENCV
 
     list *options = read_data_cfg(datacfg);
@@ -889,7 +889,7 @@ void run_detector(int argc, char **argv)
     else if(0==strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "valid2")) validate_detector_flip(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "recall")) validate_detector_recall(cfg, weights);
-    else if(0==strcmp(argv[2], "server")) run_server(datacfg, cfg, weights, thresh, hier_thresh);
+    else if(0==strcmp(argv[2], "server")) detector_server(datacfg, cfg, weights, thresh, hier_thresh);
     else if(0==strcmp(argv[2], "demo")) {
         list *options = read_data_cfg(datacfg);
         int classes = option_find_int(options, "classes", 20);

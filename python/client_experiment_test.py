@@ -3,7 +3,7 @@ import os
 import struct
 
 HOST = 'localhost'
-PORT = 8005
+PORT = 8007
 image_folder = "../Downloads/yolo_semi_large_test_set_v3/images/"
 images = os.listdir(image_folder)
 images = [image_folder + image for image in images]
