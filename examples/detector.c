@@ -770,6 +770,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
             CvMat* rawData = cvCreateMat(1, size, CV_8UC1);
             rawData->data.ptr = result_array;
             IplImage* iplimage = cvDecodeImage(rawData, CV_LOAD_IMAGE_ANYCOLOR);
+            cvCvtColor(iplimage, iplimage, CV_BGR2RGB);
             image im = ipl_to_image(iplimage);
             cvReleaseMat(&rawData);
             image sized = letterbox_image(im, net.w, net.h);
@@ -792,8 +793,6 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
             get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, masks, 0, 0, hier_thresh, 1);
             if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
 
-            //draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
-            
             char pred_message[12] = "Predictions";
             write(client_socket, &pred_message, sizeof(pred_message));
 
@@ -824,11 +823,10 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
             char stop_message[8] = "NO MORE";
             write(client_socket, &stop_message, sizeof(stop_message));
 
-            /*cvNamedWindow("predictions", CV_WINDOW_NORMAL); 
-            draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
-            show_image(im, "predictions");
-            cvWaitKey(0);
-            cvDestroyAllWindows();*/
+            /*draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+            char image_save_name[20];
+            sprintf(image_save_name, "multi/image_%i", count);
+            save_image(im, image_save_name);*/
 
             free_image(im);
             free_image(sized);

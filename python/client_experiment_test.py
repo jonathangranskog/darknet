@@ -3,8 +3,8 @@ import os
 import struct
 
 HOST = 'localhost'
-PORT = 8007
-image_folder = "../Downloads/yolo_semi_large_test_set_v3/images/"
+PORT = 8008
+image_folder = "../../Downloads/dataset3/image/"
 images = os.listdir(image_folder)
 images = [image_folder + image for image in images]
 
@@ -15,16 +15,18 @@ def send_image(image, s):
         print(size);
         s.sendall(str(size).encode())
         answer = s.recv(4096)
-        print('Answer =', answer.decode())
+        #print('Answer =', answer.decode())
 
         if answer.decode().startswith("Got it"):
             s.sendall(bytez)
             answer = s.recv(4096)
-            print('Answer =', answer.decode())
+            #print('Answer =', answer.decode())
             if answer.decode().startswith("Got image"):
-                print(image, "successfully sent")
+                ok = "ok"
+                s.sendall(ok.encode())
+                #print(image, "successfully sent")
                 answer = s.recv(12)
-                print('Answer =', answer.decode())
+                #print('Answer =', answer.decode())
                 if answer.decode().startswith("Predictions"):
                     i = 0
                     while True:
