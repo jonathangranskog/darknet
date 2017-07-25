@@ -3,7 +3,7 @@ import os
 import struct
 
 HOST = 'localhost'
-PORT = 8008
+PORT = 8009
 image_folder = "../../Downloads/dataset3/image/"
 images = os.listdir(image_folder)
 images = [image_folder + image for image in images]
