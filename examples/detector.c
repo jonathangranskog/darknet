@@ -672,6 +672,8 @@ int receive_image_from_socket(int socket, char** array) {
 
     size = atoi(size_buf);
 
+    printf("Size is: %i\n", size);
+
     char *image_array;
     image_array = malloc(size);
     *array = realloc(*array, size);
@@ -682,6 +684,8 @@ int receive_image_from_socket(int socket, char** array) {
     do {
         stat = write(socket, &response, sizeof(response));
     } while (stat < 0);
+
+    printf("Wrote: %s\n", response);
 
     int k;
         
@@ -695,7 +699,7 @@ int receive_image_from_socket(int socket, char** array) {
         }
 
         recv_size += read_size;
-        //printf("Total received image size: %i\n", recv_size);
+        printf("Total received image size: %i\n", recv_size);
     }
 
     *array = (char*)memcpy(*array, copy_array, size);
@@ -706,7 +710,7 @@ int receive_image_from_socket(int socket, char** array) {
     char ok_response[5];
     read(socket, &ok_response, sizeof(ok_response));
 
-    //printf("Image successfully received!\n");
+    printf("Image successfully received!\n");
     free(image_array);
     free(copy_array);
     return size;
@@ -735,7 +739,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
     float nms = .4;
     
     // SERVER IMPLEMENTATION STARTS HERE
-    int PORT = 8008;
+    int PORT = 8009;
     int s = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
@@ -820,7 +824,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
                 }
             }
 
-            char stop_message[8] = "NO MORE";
+            char stop_message[64] = "NO MORE";
             write(client_socket, &stop_message, sizeof(stop_message));
 
             /*draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
