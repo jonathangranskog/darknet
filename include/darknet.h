@@ -408,7 +408,18 @@ typedef enum {
     CONSTANT, STEP, EXP, POLY, STEPS, SIG, RANDOM
 } learning_rate_policy;
 
+typedef struct PRED {
+    int index;
+    float prob;
+    float xmin;
+    float ymin;
+    float xmax;
+    float ymax;
+} PRED;
+
 typedef struct network{
+    PRED* predictions;
+
     int n;
     int batch;
     size_t *seen;

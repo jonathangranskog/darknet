@@ -6,11 +6,19 @@ class IMAGE(Structure):
                 ("c", c_int),
                 ("data", POINTER(c_float))]
 
+class PRED(Structure):
+    _fields_ = [("index", c_int),
+                ("prob", c_float),
+                ("xmin", c_float),
+                ("ymin", c_float),
+                ("xmax", c_float),
+                ("ymax", c_float)]
+
 class METADATA(Structure):
     _fields_ = [("classes", c_int),
                 ("names", POINTER(c_char_p))]
 
-lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
+lib = CDLL("/u/70/wa.granskj1/unix/darknet/libdarknet.so", RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]
@@ -60,6 +68,17 @@ def detect(net, meta, im):
         res.append((meta.names[i], out[i]))
     res = sorted(res, key=lambda x: -x[1])
     return res
+
+def detector(net, meta, im):
+    pred = lib.network_predict_boxes
+    pred.argtypes = [c_void_p, IMAGE, c_float, c_float]
+    pred.restype = POINTER(PRED)
+    return pred(net, im, 0.25, 0.5)
+
+def free(net):
+    free_predictions = lib.free_something
+    free_predictions.argtypes = [c_void_p]
+    free_predictions(net)
 
 if __name__ == "__main__":
     net = load_net("cfg/densenet.cfg", "/home/pjreddie/trained/densenet201.weights")

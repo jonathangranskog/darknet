@@ -478,6 +478,71 @@ float *network_predict_image(network *net, image im)
     return p;
 }
 
+PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thresh)
+{
+    image imr = letterbox_image(im, net->w, net->h);
+    set_batch_network(net, 1);
+    layer l = net->layers[net->n - 1];
+
+    float nms = .4;
+    int j;
+
+    box *boxes = calloc(l.w * l.h * l.n, sizeof(box));
+    float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
+    for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
+
+    float *X = imr.data;
+    network_predict(*net, X);
+    float **masks = 0;
+    if (l.coords > 4){
+        masks = calloc(l.w*l.h*l.n, sizeof(float*));
+
+        for(j = 0; j < l.w*l.h*l.n; ++j) masks[j] = calloc(l.coords-4, sizeof(float *));
+    }
+
+    get_region_boxes(l, im.w, im.h, net->w, net->h, thresh, probs, boxes, masks, 0, 0, hier_thresh, 1);
+    if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
+
+    net->predictions = calloc(l.classes, sizeof(PRED));
+    int k = 0;
+    int u, v;
+    for (u = 0; u < l.w * l.h * l.n; ++u) {
+        float xmin = boxes[u].x - boxes[u].w/2;
+        float xmax = boxes[u].x + boxes[u].w/2;
+        float ymin = boxes[u].y - boxes[u].h/2;
+        float ymax = boxes[u].y + boxes[u].h/2;
+
+        if (xmin < 0) xmin = 0;
+        if (ymin < 0) ymin = 0;
+        if (xmax > 1) xmax = 1;
+        if (ymax > 1) ymax = 1;
+
+        for(v = 0; v < l.classes; ++v){
+            if (probs[u][v]) {
+                PRED prediction;
+                prediction.index = v;
+                prediction.prob = probs[u][v];
+                prediction.xmin = xmin;
+                prediction.ymin = ymin;
+                prediction.xmax = xmax;
+                prediction.ymax = ymax;
+                net->predictions[k] = prediction;
+                k++;
+            }
+        }
+    } 
+
+    free_image(imr);
+    free(boxes);
+    free(masks);
+    free_ptrs((void**)probs, l.w * l.h * l.n);
+    return net->predictions;
+}
+
+void free_something(network *net) {
+    free(net->predictions);
+}
+
 int network_width(network *net){return net->w;}
 int network_height(network *net){return net->h;}
 
