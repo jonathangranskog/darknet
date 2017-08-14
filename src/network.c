@@ -478,6 +478,26 @@ float *network_predict_image(network *net, image im)
     return p;
 }
 
+image load_image_byte_array(char* bytes, int size);
+
+float* network_predict_bytes(network* net, char* bytes, int size) 
+{
+    image im = load_image_byte_array(bytes, size);
+    float *p = network_predict_image(net, im);
+    free_image(im);
+    return p;
+}
+
+PRED* network_predict_boxes(network* net, image im, float thresh, float hier_thresh);
+
+PRED* network_predict_boxes_bytes(network *net, char* bytes, int size, float thresh, float hier_thresh) 
+{
+    image im = load_image_byte_array(bytes, size);
+    PRED* p = network_predict_boxes(net, im, thresh, hier_thresh);
+    free_image(im);
+    return p;
+}
+
 PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thresh)
 {
     image imr = letterbox_image(im, net->w, net->h);
@@ -518,7 +538,7 @@ PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thr
         if (ymax > 1) ymax = 1;
 
         for(v = 0; v < l.classes; ++v){
-            if (probs[u][v]) {
+            if (probs[u][v] > thresh) {
                 PRED prediction;
                 prediction.index = v;
                 prediction.prob = probs[u][v];
@@ -530,7 +550,12 @@ PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thr
                 k++;
             }
         }
-    } 
+    }
+    
+    /*char **names = get_labels("/u/70/wa.granskj1/unix/darknet/data/coco.names");
+    image **alphabet = load_alphabet();
+    draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+    save_image(im, "test");*/
 
     free_image(imr);
     free(boxes);

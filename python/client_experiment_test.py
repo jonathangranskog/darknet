@@ -4,7 +4,7 @@ import struct
 
 HOST = 'localhost'
 PORT = 8009
-image_folder = "../../Downloads/dataset3/image/"
+image_folder = "../../Downloads/caddy_small_dataset/images/"
 images = os.listdir(image_folder)
 images = [image_folder + image for image in images]
 

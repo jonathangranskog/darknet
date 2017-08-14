@@ -183,7 +183,7 @@ image **load_alphabet()
         alphabets[j] = calloc(128, sizeof(image));
         for(i = 32; i < 127; ++i){
             char buff[256];
-            sprintf(buff, "data/labels/%d_%d.png", i, j);
+            sprintf(buff, "/u/70/wa.granskj1/unix/darknet/data/labels/%d_%d.png", i, j);
             alphabets[j][i] = load_image_color(buff, 0, 0);
         }
     }
@@ -526,6 +526,16 @@ image ipl_to_image(IplImage* src)
     image out = make_image(w, h, c);
     ipl_into_image(src, out);
     return out;
+}
+
+image load_image_byte_array(char* bytes, int size) 
+{
+    CvMat* rawData = cvCreateMat(1, size, CV_8UC1);
+    rawData->data.ptr = bytes;
+    IplImage* iplimage = cvDecodeImage(rawData, CV_LOAD_IMAGE_ANYCOLOR);
+    cvCvtColor(iplimage, iplimage, CV_BGR2RGB);
+    image im = ipl_to_image(iplimage);
+    return im;
 }
 
 image load_image_cv(char *filename, int channels)

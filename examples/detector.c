@@ -674,6 +674,8 @@ int receive_image_from_socket(int socket, char** array) {
 
     printf("Size is: %i\n", size);
 
+    if (size == 0) return 0;
+
     char *image_array;
     image_array = malloc(size);
     *array = realloc(*array, size);
@@ -771,6 +773,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
         size = receive_image_from_socket(client_socket, &result_array);
 
         if (size) {
+            time=clock();
             CvMat* rawData = cvCreateMat(1, size, CV_8UC1);
             rawData->data.ptr = result_array;
             IplImage* iplimage = cvDecodeImage(rawData, CV_LOAD_IMAGE_ANYCOLOR);
@@ -785,9 +788,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
             for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
 
             float *X = sized.data;
-            time=clock();
             network_predict(net, X);
-            printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
             float **masks = 0;
             if (l.coords > 4){
                 masks = calloc(l.w*l.h*l.n, sizeof(float*));
@@ -818,7 +819,7 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
                     if (probs[u][v]) {
                         sprintf(pred, "%s %f %f %f %f %f\n", names[v], probs[u][v],
                                 xmin, ymin, xmax, ymax);
-                        //printf(pred);
+                        printf(pred);
                         write(client_socket, &pred, sizeof(pred));
                     }
                 }
@@ -827,10 +828,12 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
             char stop_message[64] = "NO MORE";
             write(client_socket, &stop_message, sizeof(stop_message));
 
-            /*draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+            printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+
+            draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
             char image_save_name[20];
             sprintf(image_save_name, "multi/image_%i", count);
-            save_image(im, image_save_name);*/
+            save_image(im, image_save_name);
 
             free_image(im);
             free_image(sized);
