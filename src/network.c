@@ -546,7 +546,8 @@ PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thr
                 prediction.ymin = ymin;
                 prediction.xmax = xmax;
                 prediction.ymax = ymax;
-                net->predictions[k] = prediction;
+                if (k < l.classes)
+                    net->predictions[k] = prediction;
                 k++;
             }
         }

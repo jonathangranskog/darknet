@@ -830,10 +830,10 @@ void detector_server(char *datacfg, char *cfgfile, char *weightfile, float thres
 
             printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
 
-            draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+            /*draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
             char image_save_name[20];
             sprintf(image_save_name, "multi/image_%i", count);
-            save_image(im, image_save_name);
+            save_image(im, image_save_name);*/
 
             free_image(im);
             free_image(sized);
