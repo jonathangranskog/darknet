@@ -82,6 +82,27 @@ void reset_momentum(network net)
     #endif
 }
 
+void reset_network_state(network net, int b)
+{
+    int i;
+    for (i = 0; i < net.n; ++i) {
+        #ifdef GPU
+        layer l = net.layers[i];
+        if(l.state_gpu){
+            fill_gpu(l.outputs, 0, l.state_gpu + l.outputs*b, 1);
+        }
+        if(l.h_gpu){
+            fill_gpu(l.outputs, 0, l.h_gpu + l.outputs*b, 1);
+        }
+        #endif
+    }
+}
+
+void reset_rnn(network *net)
+{
+    reset_network_state(*net, 0);
+}
+
 float get_current_rate(network net)
 {
     size_t batch_num = get_current_batch(net);
@@ -302,6 +323,15 @@ float train_network(network net, data d)
     return (float)sum/(n*batch);
 }
 
+void set_temp_network(network net, float t)
+{
+    int i;
+    for(i = 0; i < net.n; ++i){
+        net.layers[i].temperature = t;
+    }
+}
+
+
 void set_batch_network(network *net, int b)
 {
     net->batch = b;
@@ -328,13 +358,10 @@ int resize_network(network *net, int w, int h)
     cuda_free(net->workspace);
 #endif
     int i;
-    //if(w == net->w && h == net->h) return 0;
     net->w = w;
     net->h = h;
     int inputs = 0;
     size_t workspace_size = 0;
-    //fprintf(stderr, "Resizing to %d x %d...\n", w, h);
-    //fflush(stderr);
     for (i = 0; i < net->n; ++i){
         layer l = net->layers[i];
         if(l.type == CONVOLUTIONAL){
@@ -464,6 +491,38 @@ float *network_predict(network net, float *input)
     return net.output;
 }
 
+int num_boxes(network *net)
+{
+    layer l = net->layers[net->n-1];
+    return l.w*l.h*l.n;
+}
+
+box *make_boxes(network *net)
+{
+    layer l = net->layers[net->n-1];
+    box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
+    return boxes;
+}
+
+float **make_probs(network *net)
+{
+    int j;
+    layer l = net->layers[net->n-1];
+    float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
+    for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
+    return probs;
+}
+
+void network_detect(network *net, image im, float thresh, float hier_thresh, float nms, box *boxes, float **probs)
+{
+    network_predict_image(net, im);
+    layer l = net->layers[net->n-1];
+    if(l.type == REGION){
+        get_region_boxes(l, im.w, im.h, net->w, net->h, thresh, probs, boxes, 0, 0, 0, hier_thresh, 0);
+        if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, l.classes, nms);
+    }
+}
+
 float *network_predict_p(network *net, float *input)
 {
     return network_predict(*net, input);
@@ -476,97 +535,6 @@ float *network_predict_image(network *net, image im)
     float *p = network_predict(*net, imr.data);
     free_image(imr);
     return p;
-}
-
-image load_image_byte_array(char* bytes, int size);
-
-float* network_predict_bytes(network* net, char* bytes, int size) 
-{
-    image im = load_image_byte_array(bytes, size);
-    float *p = network_predict_image(net, im);
-    free_image(im);
-    return p;
-}
-
-PRED* network_predict_boxes(network* net, image im, float thresh, float hier_thresh);
-
-PRED* network_predict_boxes_bytes(network *net, char* bytes, int size, float thresh, float hier_thresh) 
-{
-    image im = load_image_byte_array(bytes, size);
-    PRED* p = network_predict_boxes(net, im, thresh, hier_thresh);
-    free_image(im);
-    return p;
-}
-
-PRED* network_predict_boxes(network *net, image im, float thresh, float hier_thresh)
-{
-    image imr = letterbox_image(im, net->w, net->h);
-    set_batch_network(net, 1);
-    layer l = net->layers[net->n - 1];
-
-    float nms = .4;
-    int j;
-
-    box *boxes = calloc(l.w * l.h * l.n, sizeof(box));
-    float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
-    for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
-
-    float *X = imr.data;
-    network_predict(*net, X);
-    float **masks = 0;
-    if (l.coords > 4){
-        masks = calloc(l.w*l.h*l.n, sizeof(float*));
-
-        for(j = 0; j < l.w*l.h*l.n; ++j) masks[j] = calloc(l.coords-4, sizeof(float *));
-    }
-
-    get_region_boxes(l, im.w, im.h, net->w, net->h, thresh, probs, boxes, masks, 0, 0, hier_thresh, 1);
-    if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
-
-    net->predictions = calloc(l.classes, sizeof(PRED));
-    int k = 0;
-    int u, v;
-    for (u = 0; u < l.w * l.h * l.n; ++u) {
-        float xmin = boxes[u].x - boxes[u].w/2;
-        float xmax = boxes[u].x + boxes[u].w/2;
-        float ymin = boxes[u].y - boxes[u].h/2;
-        float ymax = boxes[u].y + boxes[u].h/2;
-
-        if (xmin < 0) xmin = 0;
-        if (ymin < 0) ymin = 0;
-        if (xmax > 1) xmax = 1;
-        if (ymax > 1) ymax = 1;
-
-        for(v = 0; v < l.classes; ++v){
-            if (probs[u][v] > thresh) {
-                PRED prediction;
-                prediction.index = v;
-                prediction.prob = probs[u][v];
-                prediction.xmin = xmin;
-                prediction.ymin = ymin;
-                prediction.xmax = xmax;
-                prediction.ymax = ymax;
-                if (k < l.classes)
-                    net->predictions[k] = prediction;
-                k++;
-            }
-        }
-    }
-    
-    /*char **names = get_labels("/u/70/wa.granskj1/unix/darknet/data/coco.names");
-    image **alphabet = load_alphabet();
-    draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
-    save_image(im, "test");*/
-
-    free_image(imr);
-    free(boxes);
-    free(masks);
-    free_ptrs((void**)probs, l.w * l.h * l.n);
-    return net->predictions;
-}
-
-void free_something(network *net) {
-    free(net->predictions);
 }
 
 int network_width(network *net){return net->w;}
