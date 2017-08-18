@@ -81,6 +81,10 @@ load_image = lib.load_image_color
 load_image.argtypes = [c_char_p, c_int, c_int]
 load_image.restype = IMAGE
 
+load_image_bytes = lib.load_image_byte_array
+load_image_bytes.argtypes = [c_char_p, c_int]
+load_image_bytes.restype = IMAGE
+
 predict_image = lib.network_predict_image
 predict_image.argtypes = [c_void_p, IMAGE]
 predict_image.restype = POINTER(c_float)
@@ -96,8 +100,8 @@ def classify(net, meta, im):
     res = sorted(res, key=lambda x: -x[1])
     return res
 
-def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
-    im = load_image(image, 0, 0)
+def detect(net, meta, im, thresh=.5, hier_thresh=.5, nms=.45):
+    #im = load_image(image, 0, 0)
     boxes = make_boxes(net)
     probs = make_probs(net)
     num =   num_boxes(net)
@@ -115,7 +119,6 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
 if __name__ == "__main__":
     net = load_net("cfg/tiny-yolo.cfg", "tiny-yolo.weights", 0)
     meta = load_meta("cfg/coco.data")
-    r = detect(net, meta, "data/dog.jpg")
+    im = load_image("data/dog.jpg", 0, 0)
+    r = detect(net, meta, im)
     print r
-    
-

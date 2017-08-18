@@ -409,8 +409,6 @@ typedef enum {
 } learning_rate_policy;
 
 typedef struct network{
-    PRED* predictions;
-
     int n;
     int batch;
     size_t *seen;
