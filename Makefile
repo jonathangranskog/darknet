@@ -1,7 +1,7 @@
 GPU=1
 CUDNN=1
 OPENCV=1
-OPENMP=1
+OPENMP=0
 DEBUG=0
 
 ARCH= -gencode arch=compute_20,code=[sm_20,sm_21] \
