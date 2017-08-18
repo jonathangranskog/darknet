@@ -92,6 +92,9 @@ predict_image.restype = POINTER(c_float)
 network_detect = lib.network_detect
 network_detect.argtypes = [c_void_p, IMAGE, c_float, c_float, c_float, POINTER(BOX), POINTER(POINTER(c_float))]
 
+free_boxes = lib.free_boxes
+free_boxes.argtypes = [POINTER(BOX)]
+
 def classify(net, meta, im):
     out = predict_image(net, im)
     res = []
@@ -101,7 +104,7 @@ def classify(net, meta, im):
     return res
 
 def detect(net, meta, im, thresh=.5, hier_thresh=.5, nms=.45):
-    #im = load_image(image, 0, 0)
+    #im = load_image_bytes(bytes, size)
     boxes = make_boxes(net)
     probs = make_probs(net)
     num =   num_boxes(net)
@@ -112,13 +115,14 @@ def detect(net, meta, im, thresh=.5, hier_thresh=.5, nms=.45):
             if probs[j][i] > 0:
                 res.append((meta.names[i], probs[j][i], (boxes[j].x, boxes[j].y, boxes[j].w, boxes[j].h)))
     res = sorted(res, key=lambda x: -x[1])
-    free_image(im)
     free_ptrs(cast(probs, POINTER(c_void_p)), num)
+    free_boxes(boxes)
     return res
 
 if __name__ == "__main__":
     net = load_net("cfg/tiny-yolo.cfg", "tiny-yolo.weights", 0)
     meta = load_meta("cfg/coco.data")
-    im = load_image("data/dog.jpg", 0, 0)
-    r = detect(net, meta, im)
+    r = detect(net, meta, "data/dog.jpg")
     print r
+    
+
