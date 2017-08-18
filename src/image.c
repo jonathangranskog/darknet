@@ -535,6 +535,8 @@ image load_image_byte_array(char* bytes, int size)
     IplImage* iplimage = cvDecodeImage(rawData, CV_LOAD_IMAGE_ANYCOLOR);
     cvCvtColor(iplimage, iplimage, CV_BGR2RGB);
     image im = ipl_to_image(iplimage);
+    cvReleaseMat(&rawData);
+    cvReleaseImage(&iplimage);
     return im;
 }
 

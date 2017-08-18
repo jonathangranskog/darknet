@@ -707,3 +707,7 @@ float *network_output(network net)
     return network_output_layer(net).output;
 }
 
+void free_boxes(box* boxes) 
+{
+    free(boxes);
+}
